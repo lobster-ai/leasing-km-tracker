@@ -1,5 +1,10 @@
 // Make debugging easier
-    document.title = 'ליסינג – ניהול ק״מ • v0.3.2 (loading...)';
+    try {
+      const ind0 = document.getElementById('jsIndicator');
+      if (ind0) ind0.textContent = 'JS: app.js executed ✅';
+    } catch (e) {}
+
+    document.title = 'ליסינג – ניהול ק״מ • v0.3.3 (loading...)';
     window.__leasingKmTrackerLoaded = false;
 
     // Mobile-friendly error reporting (shows copyable alert)
@@ -506,7 +511,7 @@
         });
 
         window.__leasingKmTrackerLoaded = true;
-        document.title = 'ליסינג – ניהול ק״מ • v0.3.2';
+        document.title = 'ליסינג – ניהול ק״מ • v0.3.3';
         const ind = document.getElementById('jsIndicator');
         if (ind) ind.textContent = 'JS: loaded ✅ (app.js)';
         render();
