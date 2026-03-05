@@ -1,15 +1,16 @@
-name: Supabase DB (apply schema)
+name: Supabase DB (push migrations)
 
 on:
   workflow_dispatch:
   push:
     branches: [ master ]
     paths:
+      - supabase/**
       - schema.sql
       - .github/workflows/supabase-db.yml
 
 jobs:
-  apply:
+  push:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -19,10 +20,10 @@ jobs:
         with:
           version: latest
 
-      - name: Apply schema.sql
+      - name: Link & push migrations
         env:
           SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
           SUPABASE_PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_REF }}
         run: |
           supabase link --project-ref "$SUPABASE_PROJECT_REF"
-          supabase db query "$(cat schema.sql)"
+          supabase db push
