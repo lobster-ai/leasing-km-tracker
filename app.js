@@ -1,4 +1,5 @@
 // Make debugging easier
+    document.title = 'ליסינג – ניהול ק״מ • v0.3.0 (loading...)';
     window.__leasingKmTrackerLoaded = false;
 
     // --- Settings (per your requirements) ---
@@ -469,6 +470,7 @@
         });
 
         window.__leasingKmTrackerLoaded = true;
+        document.title = 'ליסינג – ניהול ק״מ • v0.3.0';
         render();
       } catch (e) {
         console.error('Init failed', e);
