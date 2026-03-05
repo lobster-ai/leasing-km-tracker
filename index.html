@@ -70,7 +70,7 @@
 </head>
 <body>
   <header>
-    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.4</h1>
+    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.5</h1>
   </header>
 
   <noscript>
@@ -160,7 +160,7 @@
     // Bootstrap loader: some mobile webviews don't execute external app.js reliably.
     // We fetch the code and execute it.
     (async () => {
-      const url = 'app.js?v=0.3.4';
+      const url = 'app.js?v=0.3.5';
       const res = await fetch(url, { cache: 'no-store' });
       const txt = await res.text();
       new Function(txt)();

@@ -4,7 +4,7 @@
       if (ind0) ind0.textContent = 'JS: app.js executed ✅';
     } catch (e) {}
 
-    document.title = 'ליסינג – ניהול ק״מ • v0.3.4 (loading...)';
+    document.title = 'ליסינג – ניהול ק״מ • v0.3.5 (loading...)';
     window.__leasingKmTrackerLoaded = false;
 
     // Mobile-friendly error reporting (shows copyable alert)
@@ -261,7 +261,13 @@
       const drivenThisYear = Math.max(0, lastOdo - odoAtYearStart);
       const remainingToYearEnd = Math.floor(ANNUAL_QUOTA - drivenThisYear);
 
-      const odoAtWeekStart = odoAtOrBefore(readings, weekStart);
+      // Weekly calculation needs an odometer value at the start of the week.
+      // If there is no reading at/before week start (common when first using the app),
+      // we can't know how much was driven since Sunday. In that case, assume 0 for now
+      // and show a note until the next reading arrives.
+      const odoAtWeekStartRaw = odoAtOrBefore(readings, weekStart);
+      const hasWeekStartAnchor = readings.some(r => r.date <= dateToISO(weekStart));
+      const odoAtWeekStart = hasWeekStartAnchor ? odoAtWeekStartRaw : lastOdo;
       const drivenThisWeek = Math.max(0, lastOdo - odoAtWeekStart);
 
       const MS_DAY = 24*60*60*1000;
@@ -275,7 +281,8 @@
       kpis.innerHTML = '';
 
       const clsWeek = remainingToWeekEnd >= 0 ? 'good' : 'bad';
-      const weekSub = `שבוע: ${dateToISO(weekStart)} → ${dateToISO(weekEnd)} • נשארו ${weeksRemaining} שבועות עד ${dateToISO(yEnd)} • תקציב שבועי ~ ${Math.floor(weeklyBudget).toLocaleString('he-IL')} ק״מ`;
+      const anchorNote = hasWeekStartAnchor ? '' : ' • אין קריאה בתחילת השבוע → מניחים 0 ק״מ לשבוע עד שתוזן קריאה נוספת';
+      const weekSub = `שבוע: ${dateToISO(weekStart)} → ${dateToISO(weekEnd)} • נשארו ${weeksRemaining} שבועות עד ${dateToISO(yEnd)} • תקציב שבועי ~ ${Math.floor(weeklyBudget).toLocaleString('he-IL')} ק״מ${anchorNote}`;
       kpis.appendChild(kpiCard('כמה ק״מ נשאר לך לנסוע עד סוף השבוע (לפי חלוקה לשבועות שנותרו)', formatKm(remainingToWeekEnd), clsWeek, weekSub));
 
       const clsYear = remainingToYearEnd >= 0 ? 'good' : 'bad';
@@ -511,7 +518,7 @@
         });
 
         window.__leasingKmTrackerLoaded = true;
-        document.title = 'ליסינג – ניהול ק״מ • v0.3.4';
+        document.title = 'ליסינג – ניהול ק״מ • v0.3.5';
         const ind = document.getElementById('jsIndicator');
         if (ind) ind.textContent = 'JS: loaded ✅ (app.js)';
         render();
