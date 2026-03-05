@@ -1,0 +1,519 @@
+<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>ליסינג – ניהול ק״מ</title>
+  <meta name="description" content="אפליקציית Web פשוטה לניהול ק״מ ברכב ליסינג" />
+  <style>
+    :root{
+      --bg:#0f172a; --panel:#111c33; --panel2:#0b1326; --text:#e5e7eb; --muted:#94a3b8;
+      --accent:#38bdf8; --good:#34d399; --bad:#fb7185; --warn:#fbbf24; --border:#22304f;
+      --shadow: 0 12px 30px rgba(0,0,0,.25);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial; background:radial-gradient(1000px 600px at 20% 0%, #182a55, var(--bg)); color:var(--text)}
+    header{padding:18px 16px; position:sticky; top:0; backdrop-filter: blur(10px); background: rgba(15,23,42,.72); border-bottom:1px solid rgba(34,48,79,.6)}
+    h1{margin:0; font-size:18px; letter-spacing:.2px}
+    main{max-width:1100px; margin:0 auto; padding:16px; display:grid; gap:14px}
+
+    .grid{display:grid; gap:14px}
+    @media(min-width: 900px){
+      .grid.cols2{grid-template-columns: 1.1fr .9fr}
+      .grid.cols2b{grid-template-columns: 1fr 1fr}
+    }
+
+    .card{background:linear-gradient(180deg, rgba(255,255,255,.04), rgba(255,255,255,.02)); border:1px solid var(--border); border-radius:16px; padding:14px; box-shadow: var(--shadow)}
+    .card h2{margin:0 0 10px; font-size:15px; color:#dbeafe}
+    .kpis{display:grid; gap:10px}
+    @media(min-width:700px){.kpis{grid-template-columns: repeat(3, 1fr)}}
+
+    .kpi{background: rgba(11,19,38,.65); border:1px solid rgba(34,48,79,.8); border-radius:14px; padding:12px}
+    .kpi .label{font-size:12px; color:var(--muted)}
+    .kpi .value{font-size:22px; font-weight:700; margin-top:6px}
+    .kpi .sub{font-size:12px; color:var(--muted); margin-top:6px}
+    .value.good{color:var(--good)}
+    .value.bad{color:var(--bad)}
+    .value.warn{color:var(--warn)}
+
+    .row{display:flex; gap:10px; flex-wrap:wrap; align-items:end}
+    .row > *{flex: 1 1 140px}
+    label{display:block; font-size:12px; color:var(--muted); margin-bottom:6px}
+    input{width:100%; padding:10px 12px; border-radius:12px; border:1px solid rgba(34,48,79,.9); background: rgba(2,6,23,.45); color:var(--text); outline:none}
+    input:focus{border-color: rgba(56,189,248,.75); box-shadow: 0 0 0 3px rgba(56,189,248,.12)}
+
+    button{cursor:pointer; padding:10px 12px; border-radius:12px; border:1px solid rgba(34,48,79,.9); background: rgba(56,189,248,.12); color: var(--text); font-weight:600}
+    button:hover{background: rgba(56,189,248,.18)}
+    button.primary{background: rgba(56,189,248,.25); border-color: rgba(56,189,248,.45)}
+    button.danger{background: rgba(251,113,133,.15); border-color: rgba(251,113,133,.35)}
+    button.ghost{background: transparent}
+
+    .hint{color:var(--muted); font-size:12px; line-height:1.5}
+    .divider{height:1px; background: rgba(34,48,79,.6); margin:12px 0}
+
+    table{width:100%; border-collapse: collapse; overflow:hidden; border-radius: 12px}
+    th, td{padding:10px 10px; border-bottom:1px solid rgba(34,48,79,.6); font-size:13px}
+    th{color:#c7d2fe; text-align:right; background: rgba(2,6,23,.35)}
+    td{color:#e5e7eb}
+    tr:last-child td{border-bottom:none}
+    .small{font-size:12px; color:var(--muted)}
+
+    .toast{position: fixed; left: 50%; bottom: 18px; transform: translateX(-50%);
+      background: rgba(0,0,0,.78); color: #fff; padding: 10px 14px; border-radius: 12px;
+      font-size: 14px; max-width: 90vw; z-index: 9999; opacity: 0; pointer-events:none; transition: opacity 180ms ease}
+    .toast.show{opacity:1}
+
+    canvas{max-width:100%}
+    footer{padding: 14px 16px 30px; color: var(--muted); font-size: 12px; text-align:center}
+    a{color: var(--accent)}
+  </style>
+</head>
+<body>
+  <header>
+    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים)</h1>
+  </header>
+
+  <main>
+    <section class="card">
+      <h2>מסך הבית</h2>
+      <div class="kpis" id="kpis"></div>
+      <div class="divider"></div>
+      <div class="row">
+        <div>
+          <label for="odo">קריאת ק״מ (מד אוץ)</label>
+          <input id="odo" type="number" inputmode="numeric" min="0" step="1" placeholder="לדוגמה: 12345" />
+        </div>
+        <div>
+          <label for="date">תאריך</label>
+          <input id="date" type="date" />
+        </div>
+        <div style="flex: 0 0 180px">
+          <button class="primary" id="save">שמירה</button>
+        </div>
+        <div style="flex: 0 0 180px">
+          <button class="ghost" id="resetAll" title="מוחק את כל הנתונים מהמכשיר">איפוס נתונים</button>
+        </div>
+      </div>
+      <p class="hint">שבוע מחושב מיום <b>ראשון</b> עד ראשון. כל הרשומות נשמרות מקומית במכשיר (LocalStorage). מומלץ להזין קריאה פעם בשבוע או בכל תדלוק.</p>
+    </section>
+
+    <section class="grid cols2">
+      <section class="card">
+        <h2>גרף קו – ק״מ מצטבר</h2>
+        <canvas id="lineChart" height="120"></canvas>
+        <p class="small">הגרף מציג את הקריאות שהזנת (מד אוץ). הק״מ המצטבר הוא הקריאה האחרונה (כי התחלת מ־0).</p>
+      </section>
+      <section class="card">
+        <h2>גרף עמודות – ק״מ לשבוע</h2>
+        <canvas id="barChart" height="120"></canvas>
+        <p class="small">מבוסס על ההפרשים בין קריאה לקריאה ומקובץ לפי שבוע (ראשון→ראשון).</p>
+      </section>
+    </section>
+
+    <section class="card">
+      <h2>היסטוריית קריאות</h2>
+      <div class="row" style="align-items:center">
+        <button id="export">ייצוא JSON</button>
+        <button id="import">ייבוא JSON</button>
+        <input id="importFile" type="file" accept="application/json" style="display:none" />
+      </div>
+      <div class="divider"></div>
+      <div style="overflow:auto">
+        <table>
+          <thead>
+            <tr>
+              <th>תאריך</th>
+              <th>קריאה (ק״מ)</th>
+              <th>Δ מהקריאה הקודמת</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="rows"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div class="toast" id="toast"></div>
+  <footer>
+    נבנה כ־Web App סטטי. אפשר לארח ב־GitHub Pages.
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script>
+    // --- Settings (per your requirements) ---
+    const LEASE_START = new Date('2025-06-26T00:00:00');
+    const ANNUAL_QUOTA = 20000;
+    const TOTAL_QUOTA = 60000; // 3 years
+    const BASELINE_ODO = 0;
+
+    const STORAGE_KEY = 'leasingKmTracker.v1';
+
+    const $ = (id) => document.getElementById(id);
+
+    function clamp(n, min, max){ return Math.max(min, Math.min(max, n)); }
+
+    function showToast(msg, ms=1600){
+      const el = $('toast');
+      el.textContent = msg;
+      el.classList.add('show');
+      clearTimeout(showToast._t);
+      showToast._t = setTimeout(()=> el.classList.remove('show'), ms);
+    }
+
+    function dateToISO(d){
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth()+1).padStart(2,'0');
+      const dd = String(d.getDate()).padStart(2,'0');
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    function parseISODate(s){
+      // treat as local date
+      const [y,m,d] = s.split('-').map(Number);
+      return new Date(y, m-1, d, 0,0,0,0);
+    }
+
+    function startOfWeekSunday(d){
+      const x = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const day = x.getDay(); // 0=Sun
+      x.setDate(x.getDate() - day);
+      x.setHours(0,0,0,0);
+      return x;
+    }
+
+    function endOfWeekSunday(d){
+      const s = startOfWeekSunday(d);
+      const e = new Date(s);
+      e.setDate(e.getDate() + 7);
+      e.setHours(0,0,0,0);
+      return e;
+    }
+
+    function leaseYearStartFor(date){
+      // Anniversary-based lease year boundaries starting at LEASE_START.
+      // Find the most recent anniversary <= date.
+      let y = date.getFullYear();
+      const annThisYear = new Date(y, LEASE_START.getMonth(), LEASE_START.getDate());
+      annThisYear.setHours(0,0,0,0);
+      if (date < annThisYear) y -= 1;
+      const start = new Date(y, LEASE_START.getMonth(), LEASE_START.getDate());
+      start.setHours(0,0,0,0);
+      return start;
+    }
+
+    function leaseYearEndFor(date){
+      const start = leaseYearStartFor(date);
+      const end = new Date(start);
+      end.setFullYear(end.getFullYear() + 1);
+      return end;
+    }
+
+    function daysBetween(a,b){
+      const ms = 24*60*60*1000;
+      const aa = new Date(a); aa.setHours(0,0,0,0);
+      const bb = new Date(b); bb.setHours(0,0,0,0);
+      return Math.round((bb - aa)/ms);
+    }
+
+    function load(){
+      try{
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if(!raw) return { readings: [] };
+        const parsed = JSON.parse(raw);
+        if(!parsed.readings) parsed.readings = [];
+        return parsed;
+      } catch(e){
+        return { readings: [] };
+      }
+    }
+
+    function save(state){
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    }
+
+    function normalizeReadings(readings){
+      // Ensure sorted ascending by date, then by odo.
+      const r = readings
+        .map(x => ({ date: x.date, odometerKm: Number(x.odometerKm) }))
+        .filter(x => x.date && Number.isFinite(x.odometerKm) && x.odometerKm >= 0)
+        .sort((a,b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.odometerKm - b.odometerKm));
+      // Remove exact duplicates (same date+km)
+      const out = [];
+      const seen = new Set();
+      for(const x of r){
+        const k = x.date + '|' + x.odometerKm;
+        if(seen.has(k)) continue;
+        seen.add(k);
+        out.push(x);
+      }
+      return out;
+    }
+
+    function getLastOdo(readings){
+      if(!readings.length) return BASELINE_ODO;
+      return readings[readings.length-1].odometerKm;
+    }
+
+    function computeWeeklyDeltas(readings){
+      // Returns array of {weekStartISO, km}
+      const deltas = [];
+      for(let i=0;i<readings.length;i++){
+        const cur = readings[i];
+        const prevOdo = i===0 ? BASELINE_ODO : readings[i-1].odometerKm;
+        const delta = Math.max(0, cur.odometerKm - prevOdo);
+        deltas.push({ date: cur.date, delta });
+      }
+      const byWeek = new Map();
+      for(const d of deltas){
+        const ws = startOfWeekSunday(parseISODate(d.date));
+        const key = dateToISO(ws);
+        byWeek.set(key, (byWeek.get(key) || 0) + d.delta);
+      }
+      const weeks = Array.from(byWeek.entries())
+        .map(([weekStartISO, km]) => ({ weekStartISO, km }))
+        .sort((a,b)=> a.weekStartISO.localeCompare(b.weekStartISO));
+      return weeks;
+    }
+
+    function kpiCard(label, valueText, cls, sub){
+      const el = document.createElement('div');
+      el.className = 'kpi';
+      el.innerHTML = `
+        <div class="label">${label}</div>
+        <div class="value ${cls||''}">${valueText}</div>
+        ${sub ? `<div class="sub">${sub}</div>` : ''}
+      `;
+      return el;
+    }
+
+    let lineChart, barChart;
+
+    function render(){
+      const state = load();
+      state.readings = normalizeReadings(state.readings);
+      save(state);
+
+      const readings = state.readings;
+      const lastOdo = getLastOdo(readings);
+      const drivenTotal = Math.max(0, lastOdo - BASELINE_ODO);
+
+      const now = new Date();
+      const weekEnd = endOfWeekSunday(now);
+
+      // Lease-year pacing
+      const yStart = leaseYearStartFor(now);
+      const yEnd = leaseYearEndFor(now);
+      const totalDays = daysBetween(yStart, yEnd);
+      const elapsedDaysToWeekEnd = clamp(daysBetween(yStart, weekEnd), 0, totalDays);
+      const allowedByWeekEnd = ANNUAL_QUOTA * (elapsedDaysToWeekEnd / totalDays);
+
+      const remainingToWeekEnd = Math.floor(allowedByWeekEnd - drivenTotal);
+      const remainingToYearEnd = Math.floor(ANNUAL_QUOTA - (drivenTotal - kmAtDate(readings, yStart)));
+
+      const remainingTotalLease = Math.floor(TOTAL_QUOTA - drivenTotal);
+
+      const kpis = $('kpis');
+      kpis.innerHTML = '';
+
+      const clsWeek = remainingToWeekEnd >= 0 ? 'good' : 'bad';
+      const weekSub = `עד יום ראשון (${dateToISO(weekEnd)}) • שנת ליסינג: ${dateToISO(yStart)} → ${dateToISO(yEnd)}`;
+      kpis.appendChild(kpiCard('כמה ק״מ מותר לנסוע עד סוף השבוע', formatKm(remainingToWeekEnd), clsWeek, weekSub));
+
+      const clsYear = remainingToYearEnd >= 0 ? 'good' : 'bad';
+      kpis.appendChild(kpiCard('יתרה לשנת הליסינג הנוכחית (20,000)', formatKm(remainingToYearEnd), clsYear, 'חישוב לפי קריאות בתוך שנת הליסינג הנוכחית'));
+
+      const clsTotal = remainingTotalLease >= 0 ? 'good' : 'bad';
+      kpis.appendChild(kpiCard('יתרה לכל התקופה (60,000)', formatKm(remainingTotalLease), clsTotal, `נסעת עד כה: ${formatKm(drivenTotal)}`));
+
+      // Rows
+      const tbody = $('rows');
+      tbody.innerHTML = '';
+      for(let i=readings.length-1; i>=0; i--){
+        const cur = readings[i];
+        const prevOdo = i===0 ? BASELINE_ODO : readings[i-1].odometerKm;
+        const delta = Math.max(0, cur.odometerKm - prevOdo);
+        const tr = document.createElement('tr');
+        tr.innerHTML = `
+          <td>${cur.date}</td>
+          <td>${formatKm(cur.odometerKm)}</td>
+          <td>${formatKm(delta)}</td>
+          <td><button class="danger" data-del="${i}">מחיקה</button></td>
+        `;
+        tbody.appendChild(tr);
+      }
+      tbody.querySelectorAll('button[data-del]').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = Number(btn.getAttribute('data-del'));
+          // idx is index in sorted array (ascending) but table reversed; we used i directly.
+          state.readings.splice(idx,1);
+          save(state);
+          render();
+          showToast('נמחק');
+        });
+      });
+
+      // Charts
+      renderCharts(readings);
+    }
+
+    function formatKm(n){
+      const sign = n < 0 ? '-' : '';
+      const abs = Math.abs(n);
+      return sign + abs.toLocaleString('he-IL') + ' ק״מ';
+    }
+
+    function kmAtDate(readings, date){
+      // returns last odometer at or before date, relative to BASELINE
+      const iso = dateToISO(date);
+      let last = BASELINE_ODO;
+      for(const r of readings){
+        if(r.date <= iso) last = r.odometerKm;
+        else break;
+      }
+      return Math.max(0, last - BASELINE_ODO);
+    }
+
+    function renderCharts(readings){
+      const labels = readings.map(r => r.date);
+      const odo = readings.map(r => r.odometerKm);
+
+      const weekly = computeWeeklyDeltas(readings);
+      const wLabels = weekly.map(w => w.weekStartISO);
+      const wKm = weekly.map(w => Math.round(w.km));
+
+      // Line
+      const lineCtx = $('lineChart').getContext('2d');
+      if(lineChart) lineChart.destroy();
+      lineChart = new Chart(lineCtx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: 'קריאת ק״מ (מד אוץ)',
+            data: odo,
+            borderColor: '#38bdf8',
+            backgroundColor: 'rgba(56,189,248,.15)',
+            pointRadius: 3,
+            tension: 0.2,
+            fill: true,
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#e5e7eb' } },
+            tooltip: { callbacks: { label: (ctx) => formatKm(ctx.parsed.y) } }
+          },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(34,48,79,.35)' } },
+            y: { ticks: { color: '#94a3b8', callback: (v)=> v.toLocaleString('he-IL') }, grid: { color: 'rgba(34,48,79,.35)' } }
+          }
+        }
+      });
+
+      // Bar
+      const barCtx = $('barChart').getContext('2d');
+      if(barChart) barChart.destroy();
+      barChart = new Chart(barCtx, {
+        type: 'bar',
+        data: {
+          labels: wLabels,
+          datasets: [{
+            label: 'ק״מ בשבוע',
+            data: wKm,
+            borderColor: '#34d399',
+            backgroundColor: 'rgba(52,211,153,.25)'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { labels: { color: '#e5e7eb' } },
+            tooltip: { callbacks: { label: (ctx) => formatKm(ctx.parsed.y) } }
+          },
+          scales: {
+            x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(34,48,79,.35)' } },
+            y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(34,48,79,.35)' } }
+          }
+        }
+      });
+    }
+
+    function addReading(){
+      const odo = Number($('odo').value);
+      const date = $('date').value;
+      if(!Number.isFinite(odo) || odo < 0) { showToast('נא להזין מספר ק״מ תקין'); return; }
+      if(!date) { showToast('נא לבחור תאריך'); return; }
+
+      const state = load();
+      state.readings = normalizeReadings(state.readings);
+
+      // Validation: non-decreasing odometer
+      const last = getLastOdo(state.readings);
+      if (state.readings.length && odo < last) {
+        showToast('הקריאה חייבת להיות גדולה/שווה לקריאה האחרונה');
+        return;
+      }
+
+      state.readings.push({ date, odometerKm: odo });
+      state.readings = normalizeReadings(state.readings);
+      save(state);
+      $('odo').value = '';
+      render();
+      showToast('נשמר');
+    }
+
+    function resetAll(){
+      if(!confirm('למחוק את כל הנתונים מהמכשיר?')) return;
+      localStorage.removeItem(STORAGE_KEY);
+      render();
+      showToast('אופס – הכל נמחק');
+    }
+
+    function exportJSON(){
+      const state = load();
+      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'leasing-km-tracker.json';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    }
+
+    function importJSONFile(file){
+      const reader = new FileReader();
+      reader.onload = () => {
+        try{
+          const parsed = JSON.parse(String(reader.result));
+          if(!parsed || typeof parsed !== 'object') throw new Error('bad');
+          const readings = normalizeReadings(parsed.readings || []);
+          save({ readings });
+          render();
+          showToast('יובא בהצלחה');
+        } catch(e){
+          showToast('קובץ לא תקין');
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    // init
+    $('date').value = dateToISO(new Date());
+    $('save').addEventListener('click', addReading);
+    $('resetAll').addEventListener('click', resetAll);
+    $('export').addEventListener('click', exportJSON);
+    $('import').addEventListener('click', () => $('importFile').click());
+    $('importFile').addEventListener('change', (e) => {
+      const f = e.target.files && e.target.files[0];
+      if(f) importJSONFile(f);
+      e.target.value = '';
+    });
+
+    render();
+  </script>
+</body>
+</html>
