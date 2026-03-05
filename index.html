@@ -70,12 +70,19 @@
 </head>
 <body>
   <header>
-    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.0</h1>
+    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.1</h1>
   </header>
+
+  <noscript>
+    <div style="background:#7f1d1d;color:#fff;padding:12px 16px;text-align:center">
+      JavaScript כבוי בדפדפן — האפליקציה לא תעבוד עד שמפעילים JavaScript.
+    </div>
+  </noscript>
 
   <main>
     <section class="card">
       <h2>מסך הבית</h2>
+      <div id="jsIndicator" class="small" style="margin:-4px 0 8px; opacity:.9">JS: not loaded</div>
       <div class="kpis" id="kpis"></div>
       <div class="divider"></div>
       <div class="row">
