@@ -142,6 +142,9 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
+    // Make debugging easier
+    window.__leasingKmTrackerLoaded = false;
+
     // --- Settings (per your requirements) ---
     const LEASE_START = new Date('2025-06-26T00:00:00');
     const ANNUAL_QUOTA = 20000;
@@ -596,19 +599,27 @@
       reader.readAsText(file);
     }
 
-    // init
-    $('date').value = dateToISO(new Date());
-    $('save').addEventListener('click', () => addReading());
-    $('resetAll').addEventListener('click', resetAll);
-    $('export').addEventListener('click', exportJSON);
-    $('import').addEventListener('click', () => $('importFile').click());
-    $('importFile').addEventListener('change', (e) => {
-      const f = e.target.files && e.target.files[0];
-      if(f) importJSONFile(f);
-      e.target.value = '';
-    });
+    // init (after full page load so external libs are ready)
+    window.addEventListener('load', () => {
+      try {
+        $('date').value = dateToISO(new Date());
+        $('save').addEventListener('click', () => addReading());
+        $('resetAll').addEventListener('click', resetAll);
+        $('export').addEventListener('click', exportJSON);
+        $('import').addEventListener('click', () => $('importFile').click());
+        $('importFile').addEventListener('change', (e) => {
+          const f = e.target.files && e.target.files[0];
+          if(f) importJSONFile(f);
+          e.target.value = '';
+        });
 
-    render();
+        window.__leasingKmTrackerLoaded = true;
+        render();
+      } catch (e) {
+        console.error('Init failed', e);
+        showToast('שגיאה בטעינה: ' + String(e));
+      }
+    });
   </script>
 </body>
 </html>
