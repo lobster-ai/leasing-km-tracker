@@ -11,7 +11,7 @@
     // --- Supabase (PUBLIC MODE) ---
     const SUPABASE_URL = 'https://ajyphgxwyuplarrcxdfj.supabase.co';
     const SUPABASE_KEY = 'sb_publishable_0I-7RIxnBEkOx0vKzZdJ5Q_cFxWy9-1';
-    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    let supabase = null;
     const READINGS_TABLE = 'readings';
 
     const STORAGE_KEY = 'leasingKmTracker.v1'; // fallback/local cache
@@ -100,8 +100,14 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
+    function ensureSupabase(){
+      if (!supabase) throw new Error('Supabase not initialized');
+      return supabase;
+    }
+
     async function fetchReadingsRemote(){
-      const { data, error } = await supabase
+      const sb = ensureSupabase();
+      const { data, error } = await sb
         .from(READINGS_TABLE)
         .select('id,date,odometer_km,created_at')
         .order('date', { ascending: true })
@@ -116,7 +122,8 @@
     }
 
     async function insertReadingRemote(date, odometerKm){
-      const { data, error } = await supabase
+      const sb = ensureSupabase();
+      const { data, error } = await sb
         .from(READINGS_TABLE)
         .insert({ date, odometer_km: odometerKm })
         .select('id,date,odometer_km,created_at')
@@ -131,7 +138,8 @@
     }
 
     async function deleteReadingRemote(id){
-      const { error } = await supabase
+      const sb = ensureSupabase();
+      const { error } = await sb
         .from(READINGS_TABLE)
         .delete()
         .eq('id', id);
@@ -458,6 +466,14 @@
 
     function initApp() {
       try {
+        // Init Supabase client (if library loaded)
+        if (window.supabase && typeof window.supabase.createClient === 'function') {
+          supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+        } else {
+          supabase = null;
+          showToast('Supabase לא נטען (יתכן חסימה/רשת) — עובד זמנית מקומית');
+        }
+
         $('date').value = dateToISO(new Date());
         $('save').addEventListener('click', () => addReading());
         $('resetAll').addEventListener('click', resetAll);
