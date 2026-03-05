@@ -299,17 +299,28 @@
       const drivenTotal = Math.max(0, lastOdo - BASELINE_ODO);
 
       const now = new Date();
+      const weekStart = startOfWeekSunday(now);
       const weekEnd = endOfWeekSunday(now);
 
-      // Lease-year pacing
+      // Lease-year boundaries (anniversary-based)
       const yStart = leaseYearStartFor(now);
       const yEnd = leaseYearEndFor(now);
-      const totalDays = daysBetween(yStart, yEnd);
-      const elapsedDaysToWeekEnd = clamp(daysBetween(yStart, weekEnd), 0, totalDays);
-      const allowedByWeekEnd = ANNUAL_QUOTA * (elapsedDaysToWeekEnd / totalDays);
 
-      const remainingToWeekEnd = Math.floor(allowedByWeekEnd - drivenTotal);
-      const remainingToYearEnd = Math.floor(ANNUAL_QUOTA - (drivenTotal - kmAtDate(readings, yStart)));
+      // --- Your preferred logic ---
+      // Take the remaining km in the lease-year and spread it across the remaining weeks.
+      // Then show how many km are left to drive in the *current* week.
+
+      const odoAtYearStart = odoAtOrBefore(readings, yStart);
+      const drivenThisYear = Math.max(0, lastOdo - odoAtYearStart);
+      const remainingToYearEnd = Math.floor(ANNUAL_QUOTA - drivenThisYear);
+
+      const odoAtWeekStart = odoAtOrBefore(readings, weekStart);
+      const drivenThisWeek = Math.max(0, lastOdo - odoAtWeekStart);
+
+      const MS_DAY = 24*60*60*1000;
+      const weeksRemaining = Math.max(1, Math.ceil((yEnd - weekStart) / (7*MS_DAY)));
+      const weeklyBudget = (ANNUAL_QUOTA - drivenThisYear) / weeksRemaining;
+      const remainingToWeekEnd = Math.floor(weeklyBudget - drivenThisWeek);
 
       const remainingTotalLease = Math.floor(TOTAL_QUOTA - drivenTotal);
 
@@ -317,11 +328,11 @@
       kpis.innerHTML = '';
 
       const clsWeek = remainingToWeekEnd >= 0 ? 'good' : 'bad';
-      const weekSub = `עד יום ראשון (${dateToISO(weekEnd)}) • שנת ליסינג: ${dateToISO(yStart)} → ${dateToISO(yEnd)}`;
-      kpis.appendChild(kpiCard('כמה ק״מ מותר לנסוע עד סוף השבוע', formatKm(remainingToWeekEnd), clsWeek, weekSub));
+      const weekSub = `שבוע: ${dateToISO(weekStart)} → ${dateToISO(weekEnd)} • נשארו ${weeksRemaining} שבועות עד ${dateToISO(yEnd)} • תקציב שבועי ~ ${Math.floor(weeklyBudget).toLocaleString('he-IL')} ק״מ`;
+      kpis.appendChild(kpiCard('כמה ק״מ נשאר לך לנסוע עד סוף השבוע (לפי חלוקה לשבועות שנותרו)', formatKm(remainingToWeekEnd), clsWeek, weekSub));
 
       const clsYear = remainingToYearEnd >= 0 ? 'good' : 'bad';
-      kpis.appendChild(kpiCard('יתרה לשנת הליסינג הנוכחית (20,000)', formatKm(remainingToYearEnd), clsYear, 'חישוב לפי קריאות בתוך שנת הליסינג הנוכחית'));
+      kpis.appendChild(kpiCard('יתרה לשנת הליסינג הנוכחית (20,000)', formatKm(remainingToYearEnd), clsYear, `נסעת השנה: ${formatKm(drivenThisYear)} (מהתאריך ${dateToISO(yStart)})`));
 
       const clsTotal = remainingTotalLease >= 0 ? 'good' : 'bad';
       kpis.appendChild(kpiCard('יתרה לכל התקופה (60,000)', formatKm(remainingTotalLease), clsTotal, `נסעת עד כה: ${formatKm(drivenTotal)}`));
@@ -363,14 +374,19 @@
       return sign + abs.toLocaleString('he-IL') + ' ק״מ';
     }
 
-    function kmAtDate(readings, date){
-      // returns last odometer at or before date, relative to BASELINE
+    function odoAtOrBefore(readings, date){
       const iso = dateToISO(date);
       let last = BASELINE_ODO;
       for(const r of readings){
         if(r.date <= iso) last = r.odometerKm;
         else break;
       }
+      return last;
+    }
+
+    function kmAtDate(readings, date){
+      // returns last odometer at or before date, relative to BASELINE
+      const last = odoAtOrBefore(readings, date);
       return Math.max(0, last - BASELINE_ODO);
     }
 
