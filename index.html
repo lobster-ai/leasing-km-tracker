@@ -70,7 +70,7 @@
 </head>
 <body>
   <header>
-    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.3</h1>
+    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.4</h1>
   </header>
 
   <noscript>
@@ -156,7 +156,18 @@
 
   <script src="vendor/chart.umd.min.js"></script>
   <script src="vendor/supabase.umd.js"></script>
-  <script src="app.js?v=0.3.3" type="text/javascript"></script>
+  <script>
+    // Bootstrap loader: some mobile webviews don't execute external app.js reliably.
+    // We fetch the code and execute it.
+    (async () => {
+      const url = 'app.js?v=0.3.4';
+      const res = await fetch(url, { cache: 'no-store' });
+      const txt = await res.text();
+      new Function(txt)();
+    })().catch((e) => {
+      alert('BOOTSTRAP ERROR\n' + String(e));
+    });
+  </script>
 
 </body>
 </html>
