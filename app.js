@@ -2,6 +2,26 @@
     document.title = 'ליסינג – ניהול ק״מ • v0.3.0 (loading...)';
     window.__leasingKmTrackerLoaded = false;
 
+    // Mobile-friendly error reporting (shows copyable alert)
+    (function(){
+      function fmt(prefix, err){
+        try {
+          const msg = (err && (err.stack || err.message)) ? (err.stack || err.message) : String(err);
+          return prefix + '\n' + msg;
+        } catch (_) {
+          return prefix + '\n' + String(err);
+        }
+      }
+      window.addEventListener('error', (e) => {
+        const text = fmt('JS ERROR', e?.error || e?.message || e);
+        alert(text);
+      });
+      window.addEventListener('unhandledrejection', (e) => {
+        const text = fmt('PROMISE REJECTION', e?.reason || e);
+        alert(text);
+      });
+    })();
+
     // --- Settings (per your requirements) ---
     const LEASE_START = new Date('2025-06-26T00:00:00');
     const ANNUAL_QUOTA = 20000;
