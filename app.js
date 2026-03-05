@@ -455,8 +455,7 @@
       reader.readAsText(file);
     }
 
-    // init (after full page load so external libs are ready)
-    window.addEventListener('load', () => {
+    function initApp() {
       try {
         $('date').value = dateToISO(new Date());
         $('save').addEventListener('click', () => addReading());
@@ -475,4 +474,11 @@
         console.error('Init failed', e);
         showToast('שגיאה בטעינה: ' + String(e));
       }
-    });
+    }
+
+    // init: run as soon as DOM is ready (don't rely on the load event)
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', initApp, { once: true });
+    } else {
+      initApp();
+    }
