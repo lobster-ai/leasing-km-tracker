@@ -140,6 +140,7 @@
   </footer>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script>
     // --- Settings (per your requirements) ---
     const LEASE_START = new Date('2025-06-26T00:00:00');
@@ -147,7 +148,13 @@
     const TOTAL_QUOTA = 60000; // 3 years
     const BASELINE_ODO = 0;
 
-    const STORAGE_KEY = 'leasingKmTracker.v1';
+    // --- Supabase (PUBLIC MODE) ---
+    const SUPABASE_URL = 'https://ajyphgxwyuplarrcxdfj.supabase.co';
+    const SUPABASE_KEY = 'sb_publishable_0I-7RIxnBEkOx0vKzZdJ5Q_cFxWy9-1';
+    const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+    const READINGS_TABLE = 'readings';
+
+    const STORAGE_KEY = 'leasingKmTracker.v1'; // fallback/local cache
 
     const $ = (id) => document.getElementById(id);
 
@@ -217,6 +224,7 @@
     }
 
     function load(){
+      // Local fallback cache (used if Supabase unavailable)
       try{
         const raw = localStorage.getItem(STORAGE_KEY);
         if(!raw) return { readings: [] };
@@ -232,10 +240,48 @@
       localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
     }
 
+    async function fetchReadingsRemote(){
+      const { data, error } = await supabase
+        .from(READINGS_TABLE)
+        .select('id,date,odometer_km,created_at')
+        .order('date', { ascending: true })
+        .order('odometer_km', { ascending: true });
+      if (error) throw error;
+      return (data || []).map(r => ({
+        id: r.id,
+        date: r.date,
+        odometerKm: Number(r.odometer_km),
+        created_at: r.created_at
+      }));
+    }
+
+    async function insertReadingRemote(date, odometerKm){
+      const { data, error } = await supabase
+        .from(READINGS_TABLE)
+        .insert({ date, odometer_km: odometerKm })
+        .select('id,date,odometer_km,created_at')
+        .single();
+      if (error) throw error;
+      return {
+        id: data.id,
+        date: data.date,
+        odometerKm: Number(data.odometer_km),
+        created_at: data.created_at
+      };
+    }
+
+    async function deleteReadingRemote(id){
+      const { error } = await supabase
+        .from(READINGS_TABLE)
+        .delete()
+        .eq('id', id);
+      if (error) throw error;
+    }
+
     function normalizeReadings(readings){
       // Ensure sorted ascending by date, then by odo.
       const r = readings
-        .map(x => ({ date: x.date, odometerKm: Number(x.odometerKm) }))
+        .map(x => ({ id: x.id, date: x.date, odometerKm: Number(x.odometerKm) }))
         .filter(x => x.date && Number.isFinite(x.odometerKm) && x.odometerKm >= 0)
         .sort((a,b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.odometerKm - b.odometerKm));
       // Remove exact duplicates (same date+km)
@@ -289,12 +335,20 @@
 
     let lineChart, barChart;
 
-    function render(){
-      const state = load();
-      state.readings = normalizeReadings(state.readings);
-      save(state);
+    async function render(){
+      // Try Supabase first; fall back to local cache if needed.
+      let readings;
+      try {
+        const remote = await fetchReadingsRemote();
+        readings = normalizeReadings(remote);
+        save({ readings });
+      } catch (e) {
+        const state = load();
+        state.readings = normalizeReadings(state.readings);
+        save(state);
+        readings = state.readings;
+      }
 
-      const readings = state.readings;
       const lastOdo = getLastOdo(readings);
       const drivenTotal = Math.max(0, lastOdo - BASELINE_ODO);
 
@@ -354,13 +408,23 @@
         tbody.appendChild(tr);
       }
       tbody.querySelectorAll('button[data-del]').forEach(btn => {
-        btn.addEventListener('click', () => {
+        btn.addEventListener('click', async () => {
           const idx = Number(btn.getAttribute('data-del'));
-          // idx is index in sorted array (ascending) but table reversed; we used i directly.
-          state.readings.splice(idx,1);
-          save(state);
-          render();
-          showToast('נמחק');
+          const row = readings[idx];
+          try {
+            if (row && row.id != null) {
+              await deleteReadingRemote(row.id);
+            } else {
+              // local fallback delete
+              const state = load();
+              state.readings.splice(idx,1);
+              save(state);
+            }
+            await render();
+            showToast('נמחק');
+          } catch (e) {
+            showToast('מחיקה נכשלה (בדוק הרשאות/טבלה)');
+          }
         });
       });
 
@@ -456,35 +520,50 @@
       });
     }
 
-    function addReading(){
+    async function addReading(){
       const odo = Number($('odo').value);
       const date = $('date').value;
       if(!Number.isFinite(odo) || odo < 0) { showToast('נא להזין מספר ק״מ תקין'); return; }
       if(!date) { showToast('נא לבחור תאריך'); return; }
 
-      const state = load();
-      state.readings = normalizeReadings(state.readings);
-
-      // Validation: non-decreasing odometer
-      const last = getLastOdo(state.readings);
-      if (state.readings.length && odo < last) {
+      // Validate against last known reading (prefer remote, else local)
+      let readings;
+      try {
+        readings = normalizeReadings(await fetchReadingsRemote());
+      } catch (_) {
+        const state = load();
+        readings = normalizeReadings(state.readings);
+      }
+      const last = getLastOdo(readings);
+      if (readings.length && odo < last) {
         showToast('הקריאה חייבת להיות גדולה/שווה לקריאה האחרונה');
         return;
       }
 
-      state.readings.push({ date, odometerKm: odo });
-      state.readings = normalizeReadings(state.readings);
-      save(state);
-      $('odo').value = '';
-      render();
-      showToast('נשמר');
+      try {
+        await insertReadingRemote(date, odo);
+        $('odo').value = '';
+        await render();
+        showToast('נשמר בענן');
+      } catch (e) {
+        // fallback local save
+        const state = load();
+        state.readings = normalizeReadings(state.readings);
+        state.readings.push({ date, odometerKm: odo });
+        state.readings = normalizeReadings(state.readings);
+        save(state);
+        $('odo').value = '';
+        await render();
+        showToast('נשמר מקומית (הענן לא זמין/אין טבלה)');
+      }
     }
 
-    function resetAll(){
+    async function resetAll(){
       if(!confirm('למחוק את כל הנתונים מהמכשיר?')) return;
+      // In public mode, "reset" will only clear local cache (not remote).
       localStorage.removeItem(STORAGE_KEY);
-      render();
-      showToast('אופס – הכל נמחק');
+      await render();
+      showToast('נמחק מקומית (הענן נשאר)');
     }
 
     function exportJSON(){
@@ -519,7 +598,7 @@
 
     // init
     $('date').value = dateToISO(new Date());
-    $('save').addEventListener('click', addReading);
+    $('save').addEventListener('click', () => addReading());
     $('resetAll').addEventListener('click', resetAll);
     $('export').addEventListener('click', exportJSON);
     $('import').addEventListener('click', () => $('importFile').click());
