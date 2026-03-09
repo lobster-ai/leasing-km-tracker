@@ -70,7 +70,7 @@
 </head>
 <body>
   <header>
-    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.3.5</h1>
+    <h1>ליסינג – ניהול ק״מ (20,000 לשנה • 60,000 ל־3 שנים) • v0.4.0</h1>
   </header>
 
   <noscript>
@@ -82,15 +82,6 @@
   <main>
     <section class="card">
       <h2>מסך הבית</h2>
-      <div id="jsIndicator" class="small" style="margin:-4px 0 8px; opacity:.9">JS: not loaded</div>
-      <div id="jsHint" class="small" style="margin:-6px 0 8px; opacity:.8"></div>
-      <script>
-        // Inline sanity check: if this doesn't run, JS is blocked/disabled.
-        try {
-          const el = document.getElementById('jsHint');
-          if (el) el.textContent = 'Inline JS: ran ✅';
-        } catch (e) {}
-      </script>
       <div class="kpis" id="kpis"></div>
       <div class="divider"></div>
       <div class="row">
@@ -109,7 +100,7 @@
           <button class="ghost" id="resetAll" title="מוחק את כל הנתונים מהמכשיר">איפוס נתונים</button>
         </div>
       </div>
-      <p class="hint">שבוע מחושב מיום <b>ראשון</b> עד ראשון. כל הרשומות נשמרות מקומית במכשיר (LocalStorage). מומלץ להזין קריאה פעם בשבוע או בכל תדלוק.</p>
+      <p class="hint">שבוע מחושב מיום <b>ראשון</b> עד ראשון. הקריאות נשמרות בענן (Supabase) כדי שכל בני הבית יראו את אותו מידע. מומלץ להזין קריאה פעם בשבוע או בכל תדלוק.</p>
     </section>
 
     <section class="grid cols2">
@@ -127,11 +118,6 @@
 
     <section class="card">
       <h2>היסטוריית קריאות</h2>
-      <div class="row" style="align-items:center">
-        <button id="export">ייצוא JSON</button>
-        <button id="import">ייבוא JSON</button>
-        <input id="importFile" type="file" accept="application/json" style="display:none" />
-      </div>
       <div class="divider"></div>
       <div style="overflow:auto">
         <table>
@@ -140,7 +126,6 @@
               <th>תאריך</th>
               <th>קריאה (ק״מ)</th>
               <th>Δ מהקריאה הקודמת</th>
-              <th></th>
             </tr>
           </thead>
           <tbody id="rows"></tbody>

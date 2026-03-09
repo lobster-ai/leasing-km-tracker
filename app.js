@@ -130,6 +130,24 @@
       return supabase;
     }
 
+    function hasReadingAtOrBefore(readings, date){
+      const iso = dateToISO(date);
+      return readings.some(r => r.date <= iso);
+    }
+
+    function fillMissingWeeks(weeks, startDate, endDate){
+      // weeks: array of {weekStartISO, km} sorted asc
+      const start = startOfWeekSunday(startDate);
+      const end = startOfWeekSunday(endDate);
+      const map = new Map(weeks.map(w => [w.weekStartISO, w.km]));
+      const out = [];
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate()+7)) {
+        const iso = dateToISO(d);
+        out.push({ weekStartISO: iso, km: map.get(iso) || 0 });
+      }
+      return out;
+    }
+
     async function fetchReadingsRemote(){
       const sb = ensureSupabase();
       const { data, error } = await sb
@@ -162,14 +180,7 @@
       };
     }
 
-    async function deleteReadingRemote(id){
-      const sb = ensureSupabase();
-      const { error } = await sb
-        .from(READINGS_TABLE)
-        .delete()
-        .eq('id', id);
-      if (error) throw error;
-    }
+    // delete disabled in this version
 
     function normalizeReadings(readings){
       // Ensure sorted ascending by date, then by odo.
@@ -266,7 +277,7 @@
       // we can't know how much was driven since Sunday. In that case, assume 0 for now
       // and show a note until the next reading arrives.
       const odoAtWeekStartRaw = odoAtOrBefore(readings, weekStart);
-      const hasWeekStartAnchor = readings.some(r => r.date <= dateToISO(weekStart));
+      const hasWeekStartAnchor = hasReadingAtOrBefore(readings, weekStart);
       const odoAtWeekStart = hasWeekStartAnchor ? odoAtWeekStartRaw : lastOdo;
       const drivenThisWeek = Math.max(0, lastOdo - odoAtWeekStart);
 
@@ -303,30 +314,9 @@
           <td>${cur.date}</td>
           <td>${formatKm(cur.odometerKm)}</td>
           <td>${formatKm(delta)}</td>
-          <td><button class="danger" data-del="${i}">מחיקה</button></td>
         `;
         tbody.appendChild(tr);
       }
-      tbody.querySelectorAll('button[data-del]').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const idx = Number(btn.getAttribute('data-del'));
-          const row = readings[idx];
-          try {
-            if (row && row.id != null) {
-              await deleteReadingRemote(row.id);
-            } else {
-              // local fallback delete
-              const state = load();
-              state.readings.splice(idx,1);
-              save(state);
-            }
-            await render();
-            showToast('נמחק');
-          } catch (e) {
-            showToast('מחיקה נכשלה (בדוק הרשאות/טבלה)');
-          }
-        });
-      });
 
       // Charts
       renderCharts(readings);
@@ -358,7 +348,10 @@
       const labels = readings.map(r => r.date);
       const odo = readings.map(r => r.odometerKm);
 
-      const weekly = computeWeeklyDeltas(readings);
+      let weekly = computeWeeklyDeltas(readings);
+      // Fill missing weeks so a reading after months still shows the skipped weeks (0 km).
+      const startForWeeks = readings.length ? parseISODate(readings[0].date) : LEASE_START;
+      weekly = fillMissingWeeks(weekly, startForWeeks, new Date());
       const wLabels = weekly.map(w => w.weekStartISO);
       const wKm = weekly.map(w => Math.round(w.km));
 
@@ -466,35 +459,7 @@
       showToast('נמחק מקומית (הענן נשאר)');
     }
 
-    function exportJSON(){
-      const state = load();
-      const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = 'leasing-km-tracker.json';
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      URL.revokeObjectURL(url);
-    }
-
-    function importJSONFile(file){
-      const reader = new FileReader();
-      reader.onload = () => {
-        try{
-          const parsed = JSON.parse(String(reader.result));
-          if(!parsed || typeof parsed !== 'object') throw new Error('bad');
-          const readings = normalizeReadings(parsed.readings || []);
-          save({ readings });
-          render();
-          showToast('יובא בהצלחה');
-        } catch(e){
-          showToast('קובץ לא תקין');
-        }
-      };
-      reader.readAsText(file);
-    }
+    // export/import removed
 
     function initApp() {
       try {
@@ -509,13 +474,7 @@
         $('date').value = dateToISO(new Date());
         $('save').addEventListener('click', () => addReading());
         $('resetAll').addEventListener('click', resetAll);
-        $('export').addEventListener('click', exportJSON);
-        $('import').addEventListener('click', () => $('importFile').click());
-        $('importFile').addEventListener('change', (e) => {
-          const f = e.target.files && e.target.files[0];
-          if(f) importJSONFile(f);
-          e.target.value = '';
-        });
+        // export/import removed
 
         window.__leasingKmTrackerLoaded = true;
         document.title = 'ליסינג – ניהול ק״מ • v0.3.5';
