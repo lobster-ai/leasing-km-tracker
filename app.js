@@ -272,14 +272,12 @@
       const drivenThisYear = Math.max(0, lastOdo - odoAtYearStart);
       const remainingToYearEnd = Math.floor(ANNUAL_QUOTA - drivenThisYear);
 
-      // Weekly calculation needs an odometer value at the start of the week.
-      // If there is no reading at/before week start (common when first using the app),
-      // we can't know how much was driven since Sunday. In that case, assume 0 for now
-      // and show a note until the next reading arrives.
-      const odoAtWeekStartRaw = odoAtOrBefore(readings, weekStart);
-      const hasWeekStartAnchor = hasReadingAtOrBefore(readings, weekStart);
-      const odoAtWeekStart = hasWeekStartAnchor ? odoAtWeekStartRaw : lastOdo;
-      const drivenThisWeek = Math.max(0, lastOdo - odoAtWeekStart);
+      // Weekly calc: estimate odometer at weekStart.
+      // If readings are sparse (e.g., you enter once every few weeks), using the last
+      // reading before weekStart can massively over-count "this week".
+      const weekStartEst = estimateOdometerAt(readings, weekStart);
+      const drivenThisWeek = Math.max(0, lastOdo - weekStartEst.odo);
+      const hasWeekStartAnchor = weekStartEst.quality === 'exact' || weekStartEst.quality === 'interpolated';
 
       const MS_DAY = 24*60*60*1000;
       const weeksRemaining = Math.max(1, Math.ceil((yEnd - weekStart) / (7*MS_DAY)));
@@ -292,7 +290,11 @@
       kpis.innerHTML = '';
 
       const clsWeek = remainingToWeekEnd >= 0 ? 'good' : 'bad';
-      const anchorNote = hasWeekStartAnchor ? '' : ' • אין קריאה בתחילת השבוע → מניחים 0 ק״מ לשבוע עד שתוזן קריאה נוספת';
+      let anchorNote = '';
+      if (weekStartEst.quality === 'missing_before') anchorNote = ' • אין קריאה לפני תחילת השבוע (הנחה: 0 בתחילת השנה/היסטוריה)';
+      if (weekStartEst.quality === 'missing_after') anchorNote = ' • אין קריאה אחרי תחילת השבוע (עדיין לא הוזנה קריאה השבוע)';
+      if (weekStartEst.quality === 'interpolated') anchorNote = ' • הערכה לפי אינטרפולציה בין 2 קריאות (כי אין קריאה בדיוק בתחילת השבוע)';
+
       const weekSub = `שבוע: ${dateToISO(weekStart)} → ${dateToISO(weekEnd)} • נשארו ${weeksRemaining} שבועות עד ${dateToISO(yEnd)} • תקציב שבועי ~ ${Math.floor(weeklyBudget).toLocaleString('he-IL')} ק״מ${anchorNote}`;
       kpis.appendChild(kpiCard('כמה ק״מ נשאר לך לנסוע עד סוף השבוע (לפי חלוקה לשבועות שנותרו)', formatKm(remainingToWeekEnd), clsWeek, weekSub));
 
@@ -336,6 +338,40 @@
         else break;
       }
       return last;
+    }
+
+    function estimateOdometerAt(readings, date){
+      // readings sorted by date asc
+      if (!readings.length) return { odo: BASELINE_ODO, quality: 'missing_after' };
+      const iso = dateToISO(date);
+
+      let prev = null;
+      let next = null;
+      for (const r of readings) {
+        if (r.date <= iso) prev = r;
+        if (r.date >= iso) { next = r; break; }
+      }
+
+      if (prev && prev.date === iso) return { odo: prev.odometerKm, quality: 'exact' };
+      if (next && next.date === iso) return { odo: next.odometerKm, quality: 'exact' };
+
+      if (!prev && next) {
+        // no history before this point
+        return { odo: BASELINE_ODO, quality: 'missing_before' };
+      }
+      if (prev && !next) {
+        // no reading after this point yet
+        return { odo: prev.odometerKm, quality: 'missing_after' };
+      }
+
+      // interpolate between prev and next by time
+      const t0 = parseISODate(prev.date).getTime();
+      const t1 = parseISODate(next.date).getTime();
+      const t = parseISODate(iso).getTime();
+      const span = (t1 - t0) || 1;
+      const ratio = Math.max(0, Math.min(1, (t - t0) / span));
+      const odo = prev.odometerKm + (next.odometerKm - prev.odometerKm) * ratio;
+      return { odo, quality: 'interpolated' };
     }
 
     function kmAtDate(readings, date){
